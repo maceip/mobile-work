@@ -114,3 +114,11 @@ Authoritative plan: `plan_prime.md` SHA-256
   The 35B/2B pair remains the *research* scale ladder in master_plan — that is
   experimental design, not a budget policy. Hard caps remain as safety aborts,
   not as cost minimization.
+- D13 (2026-10-24): **Big model = OpenAI API; Tinker = small Qwen only.**
+  Whenever a strong model is needed (shakeout, teacher, baseline, canary that is
+  not the train target), use the user-supplied OpenAI key — not Tinker's large
+  models (Inkling / 397B / Nemotron Ultra / etc.). Tinker's job is fine-tuning
+  the **small Qwen** experiment (`Qwen3.5-2B`, or explicit `Qwen3.5-4B`
+  substitute). Quality of training data matters: **blend** public TypeScript
+  repair corpora with local mining (hunk preferred) rather than scraping weak
+  home dumps.
