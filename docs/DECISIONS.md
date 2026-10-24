@@ -105,3 +105,12 @@ Authoritative plan: `plan_prime.md` SHA-256
 - F5 (R6) Verification observations never import across amendments; the
   invalidated site set filters all imported cache entries.
   Details and proofs: docs/phase1/R-FIXES.md.
+- D12 (2026-10-24): **Quality first, not thrift.** User never asked to minimize
+  spend. Canary/shakeout uses the highest-quality model available, not a cheap
+  default. OpenAI live tests use a top-tier model (not `*-mini` by default).
+  Tinker sampling-only canary defaults to the strongest available model on the
+  account (e.g. `Qwen/Qwen3.5-397B-A17B` or `NVIDIA-Nemotron-3-Ultra-550B-A55B`)
+  rather than the 35B workhorse used for the training *experiment* design.
+  The 35B/2B pair remains the *research* scale ladder in master_plan — that is
+  experimental design, not a budget policy. Hard caps remain as safety aborts,
+  not as cost minimization.

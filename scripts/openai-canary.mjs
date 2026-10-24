@@ -38,7 +38,7 @@ loadDotEnvFile(join(root, ".env"));
 const args = process.argv.slice(2);
 const wantTools = args.includes("--tools");
 const modelIdx = args.indexOf("--model");
-const modelId = modelIdx >= 0 ? args[modelIdx + 1] : process.env.ZFACADE_OPENAI_MODEL || "gpt-4.1-mini";
+const modelId = modelIdx >= 0 ? args[modelIdx + 1] : process.env.ZFACADE_OPENAI_MODEL || "gpt-4.1";
 const baseUrl = (process.env.ZFACADE_OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
 const apiKey = process.env.OPENAI_API_KEY;
 
