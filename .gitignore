@@ -1,0 +1,28 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Secrets and local env (never commit credentials)
+.env
+.env.*
+!.env.example
+
+# Runtime state, databases, logs
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+.zfacade-state/
+
+# Sandbox / temp artifacts
+evidence/**/tmp/
+.zfacade-sbx-*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
