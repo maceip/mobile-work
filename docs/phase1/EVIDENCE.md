@@ -89,11 +89,42 @@ isolation (A14 open). `flat_subgraphs` is withdrawn from the pilot.
   (`refs.filter` 0→13, inlined interfaces 0→9) but no episode compiled
   through to a worker dispatch. SDFT alone is not yet capability.
 
+## Mixed Stage 1 + verification gate (run 2026-10-24)
+
+- **Canary compile diagnosis** (post-SDFT 10): 4 episodes died turn 1 on
+  tool-namespace confusion (`askCode<…>` emitted as the tool name), 4 on
+  module code inside `ts_code` (TS1232/2307/1184/SHADOWED_FACADE), 3 hit
+  UNSAFE_HOLE_TYPE, 1 truncated at 1024 tokens.
+- **Worker body contract**: of the 19 forced-teacher calls, 10 bodies had
+  imports, 10 lacked outer braces, 5 were fenced, 6 were shape-valid.
+  Worker prompt now carries a positive envelope example and explicit
+  negatives; the consumer strips one outer Markdown fence. 901 golden
+  worker datums were built from teacher workflows + ground-truth bodies
+  (268/272 train tasks teacher+golden green). Two more defects fixed on
+  the way: defaulted parameters now render `?` in signatures, and the
+  bridge splice pre-check honors the project tsconfig (project globals
+  such as `TextEncoder` no longer fail it).
+- **Mixed Stage 1**: 50/50 teacher-forced golden + on-policy KL per
+  batch. 22/30 steps before the accounted-token budget gate stopped the
+  run under the $3.50 cap (2,386,062 accounted tokens, worst-case
+  $2.398); checkpoints at steps 5/10/15/20 (`stage1-mixed/`). Loss
+  moved first 3682 → last 749 (batch-dependent sums).
+- **Verification (step-20 checkpoint)**: forced-teacher with trained
+  worker — body shape 19/19 valid (was 6/19), still 0/3 green; failures
+  are now semantic (hallucinated local identifiers failing splice
+  typecheck TS2552/2304). Canary with trained checkpoint in both roles —
+  first canary worker dispatches ever: 2/10 episodes dispatched (16
+  worker calls), 0/10 verified green. Targets (≥2/3 green;
+  ≥3/10 dispatch + ≥1/10 green) were **not met**. Combined worst-case
+  spend for the mixed run + verification ≈ $2.52 of the $3.50 cap.
+
 ## Not ready / not run
 
 - Stage 2/3 (RL through the bridge) not run; needs separate go and
   budget. No live policy has produced a verified-green bridge episode
-  yet, trained or base.
+  yet, trained or base. Remaining last-mile gaps are semantic: local
+  identifier grounding inside worker bodies and orchestrator compile
+  reliability (tool-namespace confusion persists).
 - A12 minority (credential-primary-path UI, network-command nuance, cloud
   branch) and A14–A18 unchanged; Linux unverified (seatbelt is macOS-only and
   fails closed elsewhere).

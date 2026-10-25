@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import * as ts from "typescript";
 import { sha256Hex } from "@zfacade/contracts";
 import { ToolDeniedError } from "./tools.js";
@@ -23,7 +24,9 @@ export function sigTargets(source: string, filename = "source.ts"): SigTarget[] 
     if (!node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
     if (node.typeParameters?.length || node.asteriskToken) continue;
     if (node.parameters.some((p) => !p.type || !ts.isIdentifier(p.name))) continue;
-    const signature = `(${node.parameters.map((p) => `${p.dotDotDotToken ? "..." : ""}${p.name.getText(sf)}${p.questionToken ? "?" : ""}: ${p.type!.getText(sf)}`).join(", ")}) => ${node.type.getText(sf)}`;
+    // A parameter with an initializer is optional in the call signature;
+    // omitting '?' makes the rendered type fail two-way binding checks.
+    const signature = `(${node.parameters.map((p) => `${p.dotDotDotToken ? "..." : ""}${p.name.getText(sf)}${p.questionToken || p.initializer ? "?" : ""}: ${p.type!.getText(sf)}`).join(", ")}) => ${node.type.getText(sf)}`;
     result.push({
       name: node.name.text, signature,
       start: node.body.getStart(sf), end: node.body.getEnd(),
@@ -31,7 +34,7 @@ export function sigTargets(source: string, filename = "source.ts"): SigTarget[] 
       signatureSource: source.slice(node.getStart(sf), node.body.getStart(sf)).trim(),
       parameters: node.parameters.map((p) => ({
         name: p.name.getText(sf), type: p.type!.getText(sf),
-        ...(p.questionToken ? { optional: true } : {}),
+        ...(p.questionToken || p.initializer ? { optional: true } : {}),
         ...(p.dotDotDotToken ? { rest: true } : {}),
       })),
       returnType: node.type.getText(sf),
@@ -102,15 +105,35 @@ export function checkContract(input: {
 }
 
 /**
+ * Compiler options for a workspace file: the nearest tsconfig wins, so the
+ * splice pre-check judges the file in the project's own ambient environment
+ * (libs, types, path mappings). Hardcoded es2022-only options rejected
+ * original bodies using project globals such as TextEncoder (DOM lib),
+ * which the project's actual gate accepts.
+ */
+function projectCompilerOptions(absPath: string): ts.CompilerOptions {
+  const fallback: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler, strict: true, noEmit: true,
+    lib: ["lib.es2022.d.ts", "lib.dom.d.ts"], allowImportingTsExtensions: true,
+  };
+  const configPath = ts.findConfigFile(dirname(absPath), ts.sys.fileExists, "tsconfig.json");
+  if (!configPath) return fallback;
+  const read = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (read.error) return fallback;
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, dirname(configPath), undefined, configPath);
+  return {
+    ...parsed.options, noEmit: true,
+    allowImportingTsExtensions: parsed.options.allowImportingTsExtensions ?? true,
+  };
+}
+
+/**
  * Typecheck one workspace file in a real program (module context), returning
  * diagnostics as text. Used after a code splice before the write is admitted.
  */
 export function typecheckFile(absPath: string, sourceOverride?: string): string[] {
-  const options: ts.CompilerOptions = {
-    target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.Bundler, strict: true, noEmit: true,
-    types: [], lib: ["lib.es2022.d.ts"], allowImportingTsExtensions: true,
-  };
+  const options: ts.CompilerOptions = projectCompilerOptions(absPath);
   const host = ts.createCompilerHost(options);
   if (sourceOverride !== undefined) {
     const originalRead = host.readFile.bind(host);
