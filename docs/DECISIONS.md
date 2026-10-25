@@ -122,3 +122,8 @@ Authoritative plan: `plan_prime.md` SHA-256
   substitute). Quality of training data matters: **blend** public TypeScript
   repair corpora with local mining (hunk preferred) rather than scraping weak
   home dumps.
+- D14 (2026-10-24): **Small train target = `Qwen/Qwen3.5-4B`.** User-approved
+  upgrade because `Qwen/Qwen3.5-2B` is unavailable on Tinker. This is the named
+  `small-4b` experiment (master_plan allows a 4B alternative only with explicit
+  choice — this is that choice). Workhorse stays `Qwen/Qwen3.6-35B-A3B`;
+  Stage-3 frozen worker is 4B. Do not silently substitute any other size.
