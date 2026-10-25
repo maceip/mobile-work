@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import * as ts from "typescript";
-import { sha256Hex } from "@zfacade/contracts";
+import { sha256Hex, type LocalDeclaration } from "@zfacade/contracts";
 import { ToolDeniedError } from "./tools.js";
 
 export interface SigTarget {
@@ -64,6 +64,111 @@ export function spliceBody(source: string, filename: string, name: string, expec
 export function fileImports(source: string, filename = "source.ts"): string[] {
   const sf = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true);
   return sf.statements.filter(ts.isImportDeclaration).map((d) => d.getText(sf).trim());
+}
+
+function boundedText(text: string, limit: number): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return collapsed.length <= limit ? collapsed : `${collapsed.slice(0, limit - 1)}…`;
+}
+
+function describeInitializer(init: ts.Expression, sf: ts.SourceFile): string {
+  if (ts.isAsExpression(init) || ts.isSatisfiesExpression(init)) return describeInitializer(init.expression, sf);
+  if (ts.isObjectLiteralExpression(init)) {
+    const keys = init.properties.map((p) => p.name?.getText(sf) ?? "?");
+    const shown = keys.slice(0, 8).join(", ");
+    return `object {keys: ${shown}${keys.length > 8 ? ` (+${keys.length - 8} more)` : ""}}`;
+  }
+  if (ts.isArrayLiteralExpression(init)) return `array (${init.elements.length} elements)`;
+  if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) return "function";
+  if (ts.isCallExpression(init)) return `call ${boundedText(init.expression.getText(sf), 60)}(...)`;
+  if (ts.isNewExpression(init)) return `new ${boundedText(init.expression.getText(sf), 60)}(...)`;
+  if (ts.isStringLiteral(init) || ts.isNumericLiteral(init)) return `literal ${boundedText(init.getText(sf), 60)}`;
+  if (ts.isIdentifier(init)) return `alias ${init.text}`;
+  if (ts.isTemplateExpression(init) || ts.isNoSubstitutionTemplateLiteral(init)) return "template string";
+  return ts.SyntaxKind[init.kind] ?? "expression";
+}
+
+/**
+ * Module-local declarations for worker envelope grounding: same-file exports
+ * and non-exports plus direct import bindings, with exact names and bounded
+ * declaration headers. Function bodies are never included, so no other
+ * target's solution can leak through this field.
+ */
+export function localDeclarations(source: string, filename = "source.ts", limit = 64): LocalDeclaration[] {
+  const sf = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true);
+  const out: LocalDeclaration[] = [];
+  const spanOf = (node: ts.Node): [number, number] => [
+    sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+    sf.getLineAndCharacterOfPosition(node.getEnd()).line + 1,
+  ];
+  const isExported = (node: ts.Node): boolean =>
+    Boolean(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword));
+  const headerOf = (node: ts.Declaration & { body?: ts.Node }): string => {
+    const end = node.body ? node.body.getStart(sf) : node.getEnd();
+    return boundedText(source.slice(node.getStart(sf), end), 320);
+  };
+  const bindingNames = (name: ts.BindingName, acc: ts.Identifier[] = []): ts.Identifier[] => {
+    if (ts.isIdentifier(name)) acc.push(name);
+    else for (const el of name.elements) if (ts.isBindingElement(el)) bindingNames(el.name, acc);
+    return acc;
+  };
+  for (const node of sf.statements) {
+    if (out.length >= limit) break;
+    if (ts.isImportDeclaration(node)) {
+      const from = ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : "";
+      const signature = boundedText(node.getText(sf), 240);
+      const clause = node.importClause;
+      if (clause?.name) out.push({ name: clause.name.text, kind: "import", signature, span: spanOf(node), imported_from: from, imported_name: "default" });
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) {
+        out.push({ name: bindings.name.text, kind: "import", signature, span: spanOf(node), imported_from: from, imported_name: "*" });
+      } else if (bindings && ts.isNamedImports(bindings)) {
+        for (const el of bindings.elements) {
+          out.push({
+            name: el.name.text, kind: "import", signature, span: spanOf(el), imported_from: from,
+            ...(el.propertyName ? { imported_name: el.propertyName.text } : {}),
+          });
+        }
+      }
+      continue;
+    }
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      out.push({ name: node.name.text, kind: "function", ...(isExported(node) ? { exported: true } : {}), signature: headerOf(node), span: spanOf(node) });
+    } else if (ts.isClassDeclaration(node) && node.name) {
+      // Never slice class text: a class node has no single body node, so a
+      // text slice would leak method bodies. Header + member names only.
+      const members = node.members.map((m) => m.name?.getText(sf)).filter(Boolean).slice(0, 12);
+      const heritage = (node.heritageClauses ?? []).map((h) => h.getText(sf)).join(" ");
+      out.push({
+        name: node.name.text, kind: "class", ...(isExported(node) ? { exported: true } : {}),
+        signature: boundedText(`class ${node.name.text}${heritage ? ` ${heritage}` : ""} // members: ${members.join(", ")}`, 320), span: spanOf(node),
+      });
+    } else if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+      out.push({
+        name: node.name.text, kind: ts.isInterfaceDeclaration(node) ? "interface" : "type",
+        ...(isExported(node) ? { exported: true } : {}), signature: boundedText(node.getText(sf), 600), span: spanOf(node),
+      });
+    } else if (ts.isEnumDeclaration(node)) {
+      out.push({
+        name: node.name.text, kind: "enum", ...(isExported(node) ? { exported: true } : {}),
+        signature: boundedText(`enum ${node.name.text} { ${node.members.map((m) => m.name.getText(sf)).join(", ")} }`, 320), span: spanOf(node),
+      });
+    } else if (ts.isVariableStatement(node)) {
+      const kw = node.declarationList.flags & ts.NodeFlags.Const ? "const"
+        : node.declarationList.flags & ts.NodeFlags.Let ? "let" : "var";
+      for (const decl of node.declarationList.declarations) {
+        const annotation = decl.type ? `: ${boundedText(decl.type.getText(sf), 160)}`
+          : decl.initializer ? ` = ${describeInitializer(decl.initializer, sf)}` : "";
+        for (const id of bindingNames(decl.name)) {
+          out.push({
+            name: id.text, kind: "variable", ...(isExported(node) ? { exported: true } : {}),
+            signature: boundedText(`${kw} ${id.text}${annotation}`, 320), span: spanOf(decl),
+          });
+        }
+      }
+    }
+  }
+  return out.slice(0, limit);
 }
 
 /**

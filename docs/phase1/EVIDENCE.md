@@ -118,13 +118,39 @@ isolation (A14 open). `flat_subgraphs` is withdrawn from the pilot.
   ≥3/10 dispatch + ≥1/10 green) were **not met**. Combined worst-case
   spend for the mixed run + verification ≈ $2.52 of the $3.50 cap.
 
+## Envelope grounding + mixed continuation (run 2026-10-25)
+
+- **Contract fix (R3-class)**: code worker envelopes now carry
+  `local_declarations` — same-file exports and non-exports plus direct
+  import bindings, each with exact name, kind, bounded signature, and
+  line span. Signatures never include function or method bodies.
+  Regression: an envelope-only scripted worker finds a non-exported
+  `Record` table by declaration shape and resolves it to verified green.
+- **Golden data**: worker datums rebuilt on grounded envelopes — 901
+  datums including 228 real compile-error→correct-name shapes (mutated
+  identifier, bridge TS2552 diagnostics, golden completion); 268/272
+  train tasks teacher+golden green. Prefix-exact tokenization re-verified
+  for orchestrator, worker, and error-shape datums.
+- **Mixed continuation**: 15 further steps from the mixed step-20
+  checkpoint before the budget gate (2,395,490 accounted tokens,
+  worst-case $2.408); checkpoints at continuation steps 5/10/15.
+- **Gates (step-15 checkpoint)**: forced-teacher with trained worker —
+  **1/3 verified green** (first live-policy green; single worker call),
+  other two settle completed with wrong bodies. Worker dispatches fell
+  to 7 total (was 19). Canary with the checkpoint in both roles —
+  **0/10 episodes dispatched, 0/10 green**; dominant diagnostics are
+  `binding_failed` (no bound target), SHADOWED_FACADE/1184/1232 module
+  code, and UNSAFE_HOLE_TYPE on the orchestrator side. Targets
+  (≥2/3 green; ≥3/10 dispatch + ≥1/10 green) **not met**, so the
+  one-step optimizer smoke in this sequence did not run. Round
+  worst-case spend ≈ $2.49 of the $3.50 cap.
+
 ## Not ready / not run
 
 - Stage 2/3 (RL through the bridge) not run; needs separate go and
-  budget. No live policy has produced a verified-green bridge episode
-  yet, trained or base. Remaining last-mile gaps are semantic: local
-  identifier grounding inside worker bodies and orchestrator compile
-  reliability (tool-namespace confusion persists).
+  budget. The worker role can now solve grounded leaves; the
+  orchestrator still cannot reliably produce a compiling, correctly
+  bound workflow through the real bridge.
 - A12 minority (credential-primary-path UI, network-command nuance, cloud
   branch) and A14–A18 unchanged; Linux unverified (seatbelt is macOS-only and
   fails closed elsewhere).

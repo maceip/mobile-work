@@ -18,7 +18,7 @@ function tempDir(prefix: string): string {
   return dir;
 }
 
-function makeWorkspace(variant: "stub" | "implemented" | "two-stubs" | "renamed"): string {
+function makeWorkspace(variant: "stub" | "implemented" | "two-stubs" | "renamed" | "local-table"): string {
   const ws = tempDir("zfacade-bridge-ws-");
   mkdirSync(join(ws, "src")); mkdirSync(join(ws, "test"));
   const bodies = {
@@ -26,10 +26,13 @@ function makeWorkspace(variant: "stub" | "implemented" | "two-stubs" | "renamed"
     implemented: `export function sum(left: number, right: number): number { return left + right; }\n`,
     "two-stubs": `export function sum(left: number, right: number): number { throw new Error("UNIMPLEMENTED"); }\nexport function product(left: number, right: number): number { throw new Error("UNIMPLEMENTED"); }\n`,
     renamed: `export function sum(alpha: number, beta: number): number { throw new Error("UNIMPLEMENTED"); }\n`,
+    "local-table": `const SCALE_TABLE: Record<string, number> = { alpha: 40, beta: 2 };\nexport function scaledTotal(first: string, second: string): number { throw new Error("UNIMPLEMENTED"); }\n`,
   };
   writeFileSync(join(ws, "src/math.ts"), bodies[variant]);
   const testBody = variant === "two-stubs"
     ? `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { sum, product } from "../src/math.ts";\ntest("sum", () => { assert.equal(sum(2, 3), 5); });\ntest("product", () => { assert.equal(product(3, 4), 12); });\n`
+    : variant === "local-table"
+    ? `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { scaledTotal } from "../src/math.ts";\ntest("scaledTotal", () => { assert.equal(scaledTotal("alpha", "beta"), 42); });\n`
     : `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { sum } from "../src/math.ts";\ntest("sum", () => { assert.equal(sum(20, 22), 42); });\n`;
   writeFileSync(join(ws, "test/math.test.ts"), testBody);
   writeFileSync(join(ws, "tsconfig.json"),
@@ -105,7 +108,7 @@ async function openEpisode(client: BridgeClient, ws: string): Promise<void> {
   });
 }
 
-function bridgeTest(name: string, fn: (client: BridgeClient, ws: string) => Promise<void>, variant: "stub" | "implemented" | "two-stubs" | "renamed" = "stub") {
+function bridgeTest(name: string, fn: (client: BridgeClient, ws: string) => Promise<void>, variant: "stub" | "implemented" | "two-stubs" | "renamed" | "local-table" = "stub") {
   it(name, async () => {
     const ws = makeWorkspace(variant);
     const home = tempDir("zfacade-bridge-home-");
@@ -335,6 +338,33 @@ describe("training bridge protocol v1 (real CLI process, tinker-shaped client)",
     expect(result.receipt.verified_green).toBe(false);
     expect(result.receipt.compile_clean).toBe(true);
   });
+
+  bridgeTest("R3 grounding: envelope-only worker resolves a real module-local identifier", async (client) => {
+    const workflow = [
+      `type Scaled = (first: string, second: string) => number;`,
+      `const refs = await sh.z_sig("src/math.ts");`,
+      `await askCode<Scaled>("Implement scaledTotal using the module-local table", refs.filter((r) => r.symbol === "scaledTotal"));`,
+      `await sh.z_verify("task-tests"); return 1;`,
+    ].join("\n");
+    let result = await client.call("submit_workflow", { ts_code: workflow });
+    expect(result.status).toBe("worker_required");
+    const decls = result.request.local_declarations as Array<Record<string, unknown>>;
+    expect(Array.isArray(decls)).toBe(true);
+    // Envelope-only worker: find the local table by declaration shape, use its exact name.
+    const table = decls.find((d) => d.kind === "variable" && String(d.signature).includes("Record<string, number>"));
+    expect(table).toBeTruthy();
+    const body = `{ return ${String(table!.name)}[first]! + ${String(table!.name)}[second]!; }`;
+    result = await client.call("resolve_worker", {
+      request_id: result.request.request_id, checkpoint: "grounded-worker",
+      payload: JSON.stringify({
+        kind: "code", target_id: result.request.target_id,
+        expected_body_hash: result.request.expected_body_hash, body,
+      }),
+      clean_termination: true,
+    });
+    expect(result.status).toBe("completed");
+    expect(result.receipt.verified_green).toBe(true);
+  }, "local-table");
 
   bridgeTest("R7: compiler diagnostics are structured objects, never [object Object]", async (client) => {
     const result = await client.call("submit_workflow", { ts_code: `const broken: number = "x"; return broken;` });

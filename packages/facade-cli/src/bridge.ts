@@ -15,7 +15,7 @@ import {
 import type { PermissionContext, WorkspaceStore } from "@zfacade/core";
 import { openWorkspaceStore, resolveInside } from "@zfacade/core";
 import {
-  BoundedDriver, EngineControl, checkContract, createEpisodeSandbox, destroySandbox, executeRun, fileImports, prepareWorkflow, runArgv, sigTargets,
+  BoundedDriver, EngineControl, checkContract, createEpisodeSandbox, destroySandbox, executeRun, fileImports, localDeclarations, prepareWorkflow, runArgv, sigTargets,
   spliceBody, typecheckFile, type ParkedAsk, type PreparedWorkflow, type SandboxSpec,
 } from "@zfacade/agent";
 import { auditTraining, transformTraining } from "./bridge-transform.js";
@@ -366,6 +366,7 @@ export class BridgeServer {
       const obligations = targets.map((t) => t.targetId);
       const rootDigest = digestOf({ run: active.runId, site: parked.instance.siteId, obligations });
       const primary = targets[0]!;
+      const primarySource = readFileSync(resolveInside(this.workspace, primary.file), "utf8");
       const request: WorkerRequest = {
         request_id: requestId, run_id: active.runId, revision: this.revision, node: instanceKey,
         kind: "code",
@@ -376,7 +377,8 @@ export class BridgeServer {
         target_declaration: primary.signatureSource,
         parameters: primary.parameters,
         current_body: primary.bodyText,
-        required_imports: fileImports(readFileSync(resolveInside(this.workspace, primary.file), "utf8"), primary.file),
+        required_imports: fileImports(primarySource, primary.file),
+        local_declarations: localDeclarations(primarySource, primary.file),
         root_digest: rootDigest, obligations, scope: this.task.target_files ?? [],
         anchors: (this.task.target_files ?? []).map((f) => ({
           path: f, sha256: sha256Hex(readFileSync(join(this.workspace, f))),
@@ -560,12 +562,14 @@ export class BridgeServer {
     this.appliedBodyHashes.set(target.targetId, target.bodyHash);
     if (pending.remainingTargets.length > 0) {
       const nextTarget = pending.remainingTargets[0]!;
+      const nextSource = readFileSync(resolveInside(this.workspace, nextTarget.file), "utf8");
       pending.request = {
         ...pending.request,
         target_id: nextTarget.targetId, expected_body_hash: nextTarget.bodyHash,
         target_declaration: nextTarget.signatureSource, parameters: nextTarget.parameters,
         current_body: nextTarget.bodyText,
-        required_imports: fileImports(readFileSync(resolveInside(this.workspace, nextTarget.file), "utf8"), nextTarget.file),
+        required_imports: fileImports(nextSource, nextTarget.file),
+        local_declarations: localDeclarations(nextSource, nextTarget.file),
         evidence: this.testEvidence(nextTarget.symbol),
       };
       return this.redispatchNote(pending, `applied ${target.targetId}; continue with next target`);

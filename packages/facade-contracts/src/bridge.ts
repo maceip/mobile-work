@@ -43,6 +43,19 @@ export interface BridgeDiagnostic {
   file?: string;
 }
 
+/** One module-local declaration a worker body may legitimately reference. */
+export interface LocalDeclaration {
+  name: string;
+  kind: "function" | "variable" | "class" | "interface" | "type" | "enum" | "import";
+  exported?: boolean;
+  /** Bounded declaration header (signature/alias/initializer shape), never a function body. */
+  signature: string;
+  /** 1-based [startLine, endLine] in the declaring file. */
+  span: [number, number];
+  imported_from?: string;
+  imported_name?: string;
+}
+
 export interface WorkerRequest {
   request_id: string;
   run_id: string;
@@ -63,6 +76,13 @@ export interface WorkerRequest {
   /** Current target body text (public stub/source, never a solution). */
   current_body?: string;
   required_imports?: string[];
+  /**
+   * Same-file declarations (exports and non-exports) plus direct import
+   * bindings, with exact names. Worker bodies may only reference
+   * identifiers grounded here, in parameters, or in required_imports;
+   * signatures never contain another function's body (no solutions).
+   */
+  local_declarations?: LocalDeclaration[];
   root_digest?: string;
   obligations?: string[];
   scope?: string[];
