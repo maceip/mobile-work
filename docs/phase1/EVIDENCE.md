@@ -167,12 +167,62 @@ isolation (A14 open). `flat_subgraphs` is withdrawn from the pilot.
   (loss 75.2, reload + resample verified). Round worst-case spend
   ≈ $2.64 of the $3.50 cap.
 
+## Stage 2 / Stage 3 RL (run 2026-10-25, live Tinker)
+
+- **Shaping**: non-green partial credit now requires compile-clean +
+  meaningful progress and `worker_calls >= 1`; `0.08` only for
+  under-budget (`worker_calls < 8`) completed settlements, `0.02` for
+  budget-exhausted or non-completed settlements, `0.0` for zero
+  dispatches. Grouped RL (`6x6`, centered advantages) updates only on
+  non-zero-advantage datums; no reference-KL loss exists in the loop, so
+  the anchor is conservative LR `8e-5` (0.4x Stage 1). Spend caps are
+  enforced by billing-class meters (uncached-prefill estimate; dated
+  rates), not invoices.
+- **Stage 2** (worker frozen at `stage1-mixed3/step-10`): 11 steps,
+  budget stop before step 12, estimated spend $5.786 of $6; train
+  dispatch 24–35 per 36-episode batch, stale episodes 0 throughout,
+  2 infra-dropped episodes in step 1. Checkpoints `orch-step-5/10/11`.
+  Canary (test offset 2, worker Mixed3): final step 11 — **6/10 sampled
+  dispatch (5/9 receipt-scored; 1 context-budget infrastructure
+  episode), 2/10 verified green, 0 stale**, worker calls
+  `[0,0,0,8,0,2,4,8,6,8]`; selected step 10 — **8/10 dispatch, 3/10
+  verified green, 0 stale**, worker calls `[0,0,1,8,8,2,2,8,6,8]`
+  (43 total, $0.134). Step 10 is the Stage 2 winner (late-step drift at
+  step 11). Artifacts: `zfacade-tinker/checkpoints/small/stage2/`,
+  `runs/canary-stage2-step10/20261025T085443/`,
+  `runs/canary-stage2-step11/20261025T084142/`.
+- **Stage 3** (orchestrator from Stage 2 step 10, worker unfrozen from
+  Mixed3 step 10): 12 steps, budget stop before step 13 (projected
+  $6.065), estimated spend $5.596 of $6. Co-adaptation **regressed**:
+  train pass rates 41%/67%/42%/39%/22% then 0%/8%/0%/0%/0%/0%/0%;
+  steps 8–12 skipped both updates (zero advantage), so step-10/step-12
+  checkpoints carry post-step-7 weights. Canaries (paired checkpoints):
+  step 12 — **1/10 dispatch, 0/10 green**; step 5 (winner) — **5/10
+  dispatch, 3/10 verified green, 0 stale**, worker calls
+  `[0,0,1,1,8,2,6,0,0,0]` (18 total, $0.060). Artifacts:
+  `zfacade-tinker/checkpoints/small/stage3/`,
+  `runs/canary-stage3-step5/20261025T101956/`,
+  `runs/canary-stage3-step12/20261025T101526/`.
+- **34-task test evaluation** (Stage 3 step-5 pair, test split offset 0,
+  sampling-only): **16/34 dispatch, 2/34 verified green (5.9%, Wilson
+  95% 1.6–19.1%), 0 stale**, 95 worker calls, mean reward 0.057,
+  estimated spend $0.342. Artifacts:
+  `zfacade-tinker/runs/eval34-stage3-step5/20261025T102947/`.
+- **Progression (10-task canary, same test offset 2)**: Base 0/10
+  dispatch, 0/10 green → Stage 1 Mixed3 7/10, 2/10 → Stage 2 step 10
+  8/10, 3/10 → Stage 3 step 5 5/10, 3/10 (same green with 18 vs 43
+  worker calls, lower dispatch). Stale-revision (`stale_revision`
+  settlement) count was 0 in every canary above; the earlier Mixed3
+  canary file records cancelled 2/10, not stale settlements.
+
 ## Not ready / not run
 
-- Stage 2/3 (RL through the bridge) not run; needs separate go and
-  budget. Capability is real but narrow: 2/3 forced-teacher tasks and
-  2/10 canary tasks green; orchestrator compile reliability on the
-  remaining canary tasks is still the limiter.
+- Stage 2 improved the canary; Stage 3 co-adaptation did not improve
+  verified-green count and collapsed training dispatch after step 5.
+  Capability remains narrow: best verified checkpoint is Stage 2
+  `orch-step-10` with the Mixed3 worker (3/10 canary green); no
+  checkpoint has been evaluated as a served local model, and A1 local
+  CLI acceptance remains pending.
 - A12 minority (credential-primary-path UI, network-command nuance, cloud
   branch) and A14–A18 unchanged; Linux unverified (seatbelt is macOS-only and
   fails closed elsewhere).
