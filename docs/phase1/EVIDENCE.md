@@ -145,12 +145,34 @@ isolation (A14 open). `flat_subgraphs` is withdrawn from the pilot.
   one-step optimizer smoke in this sequence did not run. Round
   worst-case spend ≈ $2.49 of the $3.50 cap.
 
+## Compile-boundary iteration (run 2026-10-25)
+
+- **Diagnosis**: submitted workflows were teacher-shaped but failed on
+  exact alias↔symbol pairing (student context listed Target aliases
+  without their bound symbols), facade import lines, and repeated
+  uncorrected submissions. Student prompts now carry explicit target
+  bindings (`Target_i_j binds file#symbol`), the minimal prompt states
+  the no-import/script-body rule, and 160 real compile-error recovery
+  datums (import-poison, wrong-symbol, tool-namespace; real bridge
+  diagnostics captured, teacher workflow as the correction) joined the
+  golden mix.
+- **Training**: mixed continuation from `stage1-mixed2` step-15 —
+  13 steps, 104 on-policy + 376 golden datums, 2,498,647 accounted
+  tokens (worst-case $2.511); checkpoints at continuation steps 5/10.
+- **Gates (step-10 checkpoint) — both met**: forced-teacher with
+  trained worker **2/3 verified green** (7→10 calls); canary with the
+  checkpoint in both roles **7/10 episodes dispatched (37 worker
+  calls), 2/10 verified green**, 0 infrastructure errors. One-step
+  optimizer/checkpoint smoke from the verified checkpoint then passed
+  (loss 75.2, reload + resample verified). Round worst-case spend
+  ≈ $2.64 of the $3.50 cap.
+
 ## Not ready / not run
 
 - Stage 2/3 (RL through the bridge) not run; needs separate go and
-  budget. The worker role can now solve grounded leaves; the
-  orchestrator still cannot reliably produce a compiling, correctly
-  bound workflow through the real bridge.
+  budget. Capability is real but narrow: 2/3 forced-teacher tasks and
+  2/10 canary tasks green; orchestrator compile reliability on the
+  remaining canary tasks is still the limiter.
 - A12 minority (credential-primary-path UI, network-command nuance, cloud
   branch) and A14–A18 unchanged; Linux unverified (seatbelt is macOS-only and
   fails closed elsewhere).
