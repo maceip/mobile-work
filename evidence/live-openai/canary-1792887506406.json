@@ -1,0 +1,11 @@
+{
+  "label": "live-openai",
+  "at": "2026-10-25T00:18:26.405Z",
+  "baseUrl": "https://api.openai.com/v1",
+  "modelId": "gpt-5.5",
+  "wantTools": true,
+  "textPreview": "",
+  "toolCallsSeen": 1,
+  "usage": null,
+  "ok": true
+}

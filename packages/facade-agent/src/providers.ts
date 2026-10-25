@@ -21,10 +21,16 @@ export class OpenAICompatibleProvider implements ProviderPort {
 
   async complete(request: ModelRequest): Promise<ModelResponse> {
     const url = `${this.baseUrl.replace(/\/$/, "")}/chat/completions`;
+    // gpt-5+ / o-series reject `max_tokens`; use `max_completion_tokens` (D15).
+    const needsCompletionTokens = /^(gpt-5|o[0-9]|o[0-9]-)/i.test(this.modelId);
     const body = {
       model: this.modelId, stream: true,
       stream_options: { include_usage: true },
-      max_tokens: request.maxTokens,
+      ...(request.maxTokens !== undefined
+        ? (needsCompletionTokens
+            ? { max_completion_tokens: request.maxTokens }
+            : { max_tokens: request.maxTokens })
+        : {}),
       messages: request.messages.map((m) => {
         if (m.role === "assistant" && m.toolCalls) {
           return {

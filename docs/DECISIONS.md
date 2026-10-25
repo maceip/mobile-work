@@ -127,3 +127,7 @@ Authoritative plan: `plan_prime.md` SHA-256
   `small-4b` experiment (master_plan allows a 4B alternative only with explicit
   choice — this is that choice). Workhorse stays `Qwen/Qwen3.6-35B-A3B`;
   Stage-3 frozen worker is 4B. Do not silently substitute any other size.
+
+- D15 (2026-10-24): **OpenAI live model = `gpt-5.5`.** `gpt-4.1` is no longer
+  used; user-directed switch. Applies to canary / bridge shakeout / big-model
+  needs (D13). Fine-tune targets remain Qwen3.5-4B / workhorse 35B (D14).

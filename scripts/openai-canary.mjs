@@ -38,7 +38,7 @@ loadDotEnvFile(join(root, ".env"));
 const args = process.argv.slice(2);
 const wantTools = args.includes("--tools");
 const modelIdx = args.indexOf("--model");
-const modelId = modelIdx >= 0 ? args[modelIdx + 1] : process.env.ZFACADE_OPENAI_MODEL || "gpt-4.1";
+const modelId = modelIdx >= 0 ? args[modelIdx + 1] : process.env.ZFACADE_OPENAI_MODEL || "gpt-5.5";
 const baseUrl = (process.env.ZFACADE_OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
 const apiKey = process.env.OPENAI_API_KEY;
 
@@ -50,7 +50,8 @@ if (!apiKey) {
 const payload = {
   model: modelId,
   stream: true,
-  max_tokens: 256,
+  // gpt-5+ rejects max_tokens (D15)
+  ...(/^gpt-5|o[0-9]/i.test(modelId) ? { max_completion_tokens: 256 } : { max_tokens: 256 }),
   messages: [
     { role: "system", content: "You are a canary. Reply with exactly: PONG" },
     { role: "user", content: "ping" },
