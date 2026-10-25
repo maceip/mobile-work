@@ -327,6 +327,15 @@ describe("training bridge protocol v1 (real CLI process, tinker-shaped client)",
     expect(result.receipt.tests_pass).toBe(true);
   });
 
+  bridgeTest("G5: verify-only workflow earns no progress credit (0 worker dispatches)", async (client) => {
+    const result = await client.call("submit_workflow", { ts_code: `await sh.z_verify("task-tests"); return 1;` });
+    expect(result.status).toBe("completed");
+    expect(result.receipt.worker_calls).toBe(0);
+    expect(result.receipt.meaningful_progress).toBe(false);
+    expect(result.receipt.verified_green).toBe(false);
+    expect(result.receipt.compile_clean).toBe(true);
+  });
+
   bridgeTest("R7: compiler diagnostics are structured objects, never [object Object]", async (client) => {
     const result = await client.call("submit_workflow", { ts_code: `const broken: number = "x"; return broken;` });
     expect(result.status).toBe("compile_error");

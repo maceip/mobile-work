@@ -103,6 +103,8 @@ export interface EpisodeReceipt {
   invalidated_nodes: number;
   elapsed_ms: number;
   provider_label: string;
+  /** Worker dispatches (askCode/askData) so far; shaping credit requires >= 1. */
+  worker_calls: number;
   /** R1 terminal-success evidence: consumers must require "completed". */
   settlement_status: string;
   cancelled: boolean;

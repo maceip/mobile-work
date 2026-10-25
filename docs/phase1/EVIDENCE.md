@@ -61,12 +61,39 @@ isolation (A14 open). `flat_subgraphs` is withdrawn from the pilot.
   orchestrator never produced a workflow that dispatched a worker.
   Artifacts: `zfacade-tinker/runs/canary-small-4b/20261024T185238/`.
 
+## Gate 5 + Stage 1 SDFT (run 2026-10-24, Option 2)
+
+- **Shaping fix**: partial credit (0.05) now strictly requires
+  `worker_calls >= 1` in both bridge receipt and consumer reward; the
+  Gate 4 verify-only 0.05 is unreachable. Bridge regression `G5` and
+  consumer reward tests cover it.
+- **Worker path proof**: forced-teacher orchestrator + live Tinker worker
+  on 3 test tasks — after fixing two generator defects (inlined
+  declarations carried illegal `export` modifiers; teacher asks passed a
+  whole file's refs to single-signature asks, failing R4 binding) the
+  run compiled 3/3, dispatched 19 live worker calls, 0/3 verified green
+  (base worker body-contract errors/redispatch loops). Corpus re-mined
+  and replayed 340/340 again after both fixes. Student prompts now carry
+  the public target declarations (teacher/student context parity).
+- **SDFT smoke**: 1 optimizer step (batch 4), loss:sum 614.7, checkpoint
+  write/read and resampling verified. First attempt found the service
+  `topk_prompt_logprobs <= 20` limit; configs corrected from 64 to 20.
+- **Stage 1 SDFT**: 35 steps × batch 16 on the 272-task train split,
+  2,169,719 accounted tokens, worst-case spend $2.18 vs the $5 cap.
+  Checkpoints at steps 10/20/30/35 (`checkpoints/small/stage1/`, local
+  manifests + `tinker://` state). Loss means moved first-5 2704 → last-5
+  2074 (batch-dependent sums; noisy).
+- **Post-SDFT canary**: same 10 test tasks, orchestrator = step-35
+  checkpoint, worker = base. 0/10 verified green, 0 worker dispatches,
+  all rewards 0.0. Teacher surface patterns increased vs base
+  (`refs.filter` 0→13, inlined interfaces 0→9) but no episode compiled
+  through to a worker dispatch. SDFT alone is not yet capability.
+
 ## Not ready / not run
 
-- Gate 5 (inspect canary evidence, then one-step optimizer/checkpoint
-  smoke) awaits explicit go/no-go. No optimizer update has ever run.
-- No live policy (OpenAI or Tinker) has produced a verified-green bridge
-  episode yet; base models do not know the facade zero-shot.
+- Stage 2/3 (RL through the bridge) not run; needs separate go and
+  budget. No live policy has produced a verified-green bridge episode
+  yet, trained or base.
 - A12 minority (credential-primary-path UI, network-command nuance, cloud
   branch) and A14–A18 unchanged; Linux unverified (seatbelt is macOS-only and
   fails closed elsewhere).

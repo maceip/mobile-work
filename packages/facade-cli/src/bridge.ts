@@ -769,6 +769,7 @@ export class BridgeServer {
       invalidated_nodes: this.invalidatedCount,
       elapsed_ms: Date.now() - this.startedAt,
       provider_label: "bridge-external-worker",
+      worker_calls: this.workerCalls,
       settlement_status: status,
       cancelled: status === "cancelled",
       open_holes: openHoles,
@@ -787,6 +788,7 @@ export class BridgeServer {
     merged.held_effect_ids = base.held_effect_ids;
     merged.denied_effect_ids = base.denied_effect_ids;
     merged.policy_violation = base.policy_violation;
+    merged.worker_calls = base.worker_calls;
     merged.tests_unchanged = unchanged;
     merged.test_tampering = !unchanged;
     merged.no_unresolved_holes = base.no_unresolved_holes;
@@ -815,8 +817,10 @@ export class BridgeServer {
     const wroteSomething = effects.some((e) => e.state === "completed" && (e.toolName === "code-splice" || e.toolName === "Write" || e.toolName === "Edit"));
     const receipt = this.buildReceipt(status, {
       compile_clean: true,
-      // Progress credit requires real completed work; fresh gates alone are not progress.
-      meaningful_progress: status === "completed" || wroteSomething,
+      // Progress credit requires a dispatched worker hole: a verify-only or
+      // inspection-only workflow settles "completed" without any ask, and
+      // that must never read as progress (Gate 5 shaping fix).
+      meaningful_progress: this.workerCalls >= 1 && (status === "completed" || wroteSomething),
       typecheck_pass: gates.typecheckPass, tests_pass: gates.testsPass,
       test_receipt_ids: [...active.driver.gateReceiptIds, ...gates.receiptIds],
     }, active);
