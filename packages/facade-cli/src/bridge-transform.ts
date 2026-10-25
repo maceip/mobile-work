@@ -80,20 +80,32 @@ export function auditTraining(source: string): AuditResult {
   const diagnostics: AuditDiagnostic[] = [];
   const holes: AuditHole[] = [];
 
-  const forbidden = (type: ts.Type, visited = new Set<ts.Type>()): boolean => {
-    if (visited.has(type)) return false;
-    visited.add(type);
+  const forbidden = (type: ts.Type, visited = new Set<number | ts.Type>(), depth = 0): boolean => {
+    // Reference-type expansion (Promise<T>.then -> Promise<U> ...) mints fresh
+    // type objects per step, so identity-based visited sets never terminate.
+    // Key by the checker's stable type id and hard-cap depth/expansions.
+    if (depth > 64 || visited.size > 4096) return false;
+    const key = (type as { id?: number }).id ?? type;
+    if (visited.has(key)) return false;
+    visited.add(key);
     if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) return true;
-    if (type.isUnionOrIntersection()) return type.types.some((t) => forbidden(t, visited));
+    if (type.isUnionOrIntersection()) return type.types.some((t) => forbidden(t, visited, depth + 1));
     if (!(type.flags & ts.TypeFlags.Object)) return false;
     if ((type as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference) {
-      if (checker.getTypeArguments(type as ts.TypeReference).some((t) => forbidden(t, visited))) return true;
+      if (checker.getTypeArguments(type as ts.TypeReference).some((t) => forbidden(t, visited, depth + 1))) return true;
     }
+    // Only authored structure counts toward the hole contract: expanding the
+    // lib surface of referenced types (Promise.then's `any` reason parameter,
+    // Set.forEach's `any` thisArg) would reject every Promise/collection type.
+    const symbol = type.getSymbol();
+    const authored = (symbol?.declarations ?? []).some((d) => d.getSourceFile() === sf);
+    const anonymous = !symbol || Boolean((type as ts.ObjectType).objectFlags & ts.ObjectFlags.Anonymous);
+    if (!authored && !anonymous) return false;
     const sigs = [...type.getCallSignatures(), ...type.getConstructSignatures()];
-    if (sigs.some((s) => forbidden(s.getReturnType(), visited)
-      || s.parameters.some((p) => forbidden(checker.getTypeOfSymbolAtLocation(p, p.valueDeclaration ?? sf), visited)))) return true;
+    if (sigs.some((s) => forbidden(s.getReturnType(), visited, depth + 1)
+      || s.parameters.some((p) => forbidden(checker.getTypeOfSymbolAtLocation(p, p.valueDeclaration ?? sf), visited, depth + 1)))) return true;
     return type.getProperties().some((p) =>
-      forbidden(checker.getTypeOfSymbolAtLocation(p, p.valueDeclaration ?? sf), visited));
+      forbidden(checker.getTypeOfSymbolAtLocation(p, p.valueDeclaration ?? sf), visited, depth + 1));
   };
 
   const visit = (node: ts.Node): void => {

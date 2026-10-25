@@ -9,6 +9,11 @@ describe("training facade audit (bridge acceptance 4)", () => {
     expect(auditTraining(`const x = await askData("s", []);`).strictClean).toBe(false);
     expect(auditTraining(`interface A { v: number }\nconst x = await askData<A>("s", []);`).strictClean).toBe(true);
   });
+  it("accepts Promise/recursive authored types without stack overflow", () => {
+    expect(auditTraining(`type F = (x: Promise<{ next: Promise<string> }>) => Promise<number>;\nconst x = await askData<F>("s", []);`).strictClean).toBe(true);
+    expect(auditTraining(`interface N { next: N | null }\ntype G = (n: N) => Promise<{ value: N }>;\nconst y = await askCode<G>("s", []);`).strictClean).toBe(true);
+    expect(auditTraining(`type H = (x: Set<number>) => Map<string, number[]>;\nconst z = await askCode<H>("s", []);`).strictClean).toBe(true);
+  });
   it("rejects shadowed facade bindings", () => {
     const src = `function askData<T>(s: string, r: unknown[]): Promise<T> { throw new Error("x"); }\nconst y = await askData<number>("s", []);`;
     const audit = auditTraining(src);
