@@ -72,3 +72,29 @@ is the right first learning step so the policy sees valid facade shape before an
 
 Also noted: multi-swe-bench was not required for volume (hunk 340 tasks is enough).
 Keep corpus local/ignored; commits without keys are correct.
+
+## Post–mixed-Stage-1 decision (2026-10-24) — **both moves, envelope first**
+
+Missed bars: forced-teacher 0/3 green; canary 2/10 dispatch, 0/10 green. Evidence:
+splice typecheck failures from **invented module-local names** (TS2552/2304) — worker
+envelopes under-specify local identifiers for a 4B model.
+
+**Order (still no Stage 2 RL):**
+
+1. **Worker envelope grounding (engineering, not just more data).** Extend R3 envelopes
+   with module-local declaration snippets for every identifier the target body may use:
+   exported + non-exported consts/types/functions in the same file and direct imports
+   (name, kind, signature/alias text, short span). Keep host-private solutions out
+   (D14/R3). Regression: a worker that sees only the envelope must resolve
+   `HISTORY_COMMAND_CATALOG`-style locals without inventing names. This is the same
+   class of defect as R3; fix the contract, then re-verify.
+
+2. **More Stage 1 golden / compile-boundary training** on `small-4b` (still 50/50 or
+   skewed golden when envelope-accurate). Include explicit compile-error → correct-name
+   datums if the teacher workflows support them. Keep hard token caps; val/test out of
+   SDFT.
+
+3. **Re-run the same gates** (forced-teacher ≥2/3 green; canary ≥3 dispatch and ≥1 green).
+   Only after those bars: one-step optimizer/checkpoint smoke (Gate 5 mechanics).
+
+**Not approved:** Stage 2/3 RL, silent envelope stubs, or treating 0-green as “good enough.”
