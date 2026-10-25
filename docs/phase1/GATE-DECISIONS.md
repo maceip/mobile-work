@@ -51,3 +51,24 @@ Before Gate 4 Tinker spend, run **1–2 OpenAI `gpt-5.5` episodes through the br
 3. Run OpenAI gpt-5.5 bridge-policy shakeout (1–2 tasks).
 4. Run Gate 4 sampling-only canary with the caps above.
 5. **Stop** and present transcripts/receipts for Gate 5 go/no-go.
+
+## Gate 5 decision (2026-10-24) — **Option 2: Stage 1 SDFT first**
+
+Rationale (D12 quality-first): base rollouts produced **0 verified green** and near-zero
+reward (OpenAI gpt-5.5: 0/4; Qwen3.5-4B: 0/10, 9× compile_error). A one-step optimizer
+smoke on that signal proves train plumbing only — it does not prove the pipeline can
+improve facade competence. SDFT on the 272-task train split **teacher reference workflows**
+is the right first learning step so the policy sees valid facade shape before any RL.
+
+**Order:**
+1. **Stage 1 SDFT** on `small-4b` + teacher workflows (train split only). Keep a hard
+   step/token cap; zero evaluation on the holdout during SDFT tuning.
+2. After SDFT produces a checkpoint that can **compile a workflow and dispatch at least
+   one worker** on a held-out sample, run the **one-step optimizer/checkpoint smoke**
+   (former Gate 5 mechanics) on that checkpoint.
+3. Then present SDFT + smoke transcripts/receipts before any Stage 2 RL or paid full run.
+
+**Not approved:** Stage 2 RL / full training / “use RL smoke as Stage 1 substitute.”
+
+Also noted: multi-swe-bench was not required for volume (hunk 340 tasks is enough).
+Keep corpus local/ignored; commits without keys are correct.
